@@ -1,0 +1,34 @@
+.\" Copyright (C) 2009 Red Hat, Inc. All Rights Reserved.
+.\" Written by Ivana Hutarova Varekova <varekova@redhat.com>
+
+.TH CGSET  1 2009-03-15 "Linux" "libcgroup Manual"
+.SH NAME
+
+cgset \- set the parameters of given cgroup(s)
+
+.SH SYNOPSIS
+\fBcgset\fR [\fB-r\fR <\fIname=value\fR>] <\fBcgroup_path\fR> ...
+.br
+\fBcgset\fR \fB--copy-from\fR <\fIsource_cgrup_path\fR> <\fBcgroup_path\fR> ...
+
+.SH DESCRIPTION
+Set the parameters of input cgroups.
+
+.TP
+.B <path>
+is the name of the cgroup which should be changed.
+This parameter can be used multiple times.
+
+.TP
+.B -r <name=value>
+defines the name of the file to set and
+the value which should be written to that file.
+This parameter can be used multiple times.
+
+.TP
+.B -copy-from <source_cgrup_path>
+defines the name of the cgroup whose parameters will be
+copied to the input cgroup.
+
+.SH SEE ALSO
+cgrules.conf (1), cgcreate (1), cgget (1)
