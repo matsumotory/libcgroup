@@ -1331,6 +1331,7 @@ static int cg_set_control_value(char *path, const char *val)
 	control_file = fopen(path, "r+e");
 
 	if (!control_file) {
+        cgroup_dbg("%s: line:%d: fopen error. control_file: %s\n", __func__, __LINE__, path);
 		if (errno == EPERM) {
 			/*
 			 * We need to set the correct error value, does the
@@ -1350,6 +1351,7 @@ static int cg_set_control_value(char *path, const char *val)
 			/* task_path contain: $path/tasks */
 			tasks_path = (char *)malloc(strlen(path) + 6 + 1);
 			if (tasks_path == NULL) {
+                cgroup_dbg("%s: line:%d \n", __func__, __LINE__);
 				last_errno = errno;
 				return ECGOTHER;
 			}
@@ -1360,6 +1362,7 @@ static int cg_set_control_value(char *path, const char *val)
 			control_file = fopen(tasks_path, "re");
 			if (!control_file) {
 				if (errno == ENOENT) {
+                    cgroup_dbg("%s: line:%d \n", __func__, __LINE__);
 					free(tasks_path);
 					return ECGROUPSUBSYSNOTMOUNTED;
 				}
@@ -1375,12 +1378,18 @@ static int cg_set_control_value(char *path, const char *val)
 	if (fprintf(control_file, "%s", val) < 0) {
 		last_errno = errno;
 		fclose(control_file);
+        cgroup_dbg("%s: line:%d \n", __func__, __LINE__);
 		return ECGOTHER;
 	}
+    cgroup_dbg("%s: line:%d: control_file: %s val:%s \n", __func__, __LINE__, path, val);
 	if (fclose(control_file) < 0) {
 		last_errno = errno;
+        cgroup_dbg("%s: line:%d \n", __func__, __LINE__);
+        cgroup_dbg("%s: line:%d: control_file: %s\n", __func__, __LINE__, path);
+        cgroup_dbg("%s: line:%d: fclose failed: control_file: %s\n", __func__, __LINE__, path);
 		return ECGOTHER;
 	}
+    cgroup_dbg("%s: line:%d: normaly return. control_file: %s val:%s \n", __func__, __LINE__, path, val);
 	return 0;
 }
 
@@ -1425,6 +1434,7 @@ int cgroup_modify_cgroup(struct cgroup *cgroup)
 			ret = asprintf(&path, "%s%s", base,
 				cgroup->controller[i]->values[j]->name);
 			if (ret < 0) {
+                cgroup_dbg("asprintf error\n");
 				last_errno = errno;
 				error = ECGOTHER;
 				goto err;
@@ -1535,6 +1545,8 @@ int cgroup_create_cgroup(struct cgroup *cgroup, int ignore_ownership)
 	int error = 0;
 	int retval = 0;
 	int ret;
+
+    printf("cgroup_create start\n");
 
 	if (!cgroup_initialized)
 		return ECGROUPNOTINITIALIZED;
