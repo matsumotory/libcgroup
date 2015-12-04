@@ -15,6 +15,7 @@ the appropriate control group.
 
 The list of rules is read during the daemon startup is are cached in the daemon's memory.
 The daemon reloads the list of rules when it receives SIGUSR2 signal.
+The daemon reloads the list of templates when it receives SIGUSR1 signal.
 
 The daemon opens a standard unix socket to receive 'sticky' requests from \fBcgexec\fR.
 
@@ -37,24 +38,30 @@ and '\fB-s\fR' are used together, the logs are sent to both destinations.
 Don't fork the daemon, stay in the foreground.
 .TP
 .B -v|--verbose
-Display more log messages. This option can be used twice to enable more verbose log
-messages.
+Display more log messages. This option can be used three times to enable more
+verbose log messages.
 .TP
 .B -q|--quiet
-Display less log messages. This option can be used twice to enable even less log
-messages and to only log errors.
+Display less log messages.
 .TP
 .B -Q|--nolog
 Disable logging.
 .TP
 .B -d|--debug
-Equivalent to '-nvvf -', i.e. don't fork the daemon, display all log messages and
+Equivalent to '-nvvvf -', i.e. don't fork the daemon, display all log messages and
 write them to the standard output.
 .TP
 .B -u <user>|--socket-user=<user>
 .B -g <group>|--socket-group=<group>
 Set the owner of cgrulesengd socket. Assumes that \fBcgexec\fR runs with proper
 suid permissions so it can write to the socket when \fBcgexec\fR --sticky is used.
+
+.SH ENVIRONMENT VARIABLES
+.TP
+.B CGROUP_LOGLEVEL
+controls verbosity of the tool. Allowed values are \fBDEBUG\fR,
+\fBINFO\fR, \fBWARNING\fR or \fBERROR\fR.
+
 .SH FILES
 .LP
 .PD .1v

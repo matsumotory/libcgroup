@@ -1,8 +1,5 @@
 /* config.h.in.  Generated from configure.in by autoheader.  */
 
-/* Define to enable extra debugging output. */
-#undef CGROUP_DEBUG
-
 /* Cgrulesengd socket path */
 #undef CGRULE_CGRED_SOCKET_PATH
 

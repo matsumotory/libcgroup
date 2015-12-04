@@ -42,15 +42,20 @@ static struct option longopts[] = {
 
 static void usage(int status, const char *program_name)
 {
-	if (status != 0)
+	if (status != 0) {
 		fprintf(stderr, "Wrong input parameters,"
 			" try %s --help' for more information.\n",
 			program_name);
-	else {
-		printf("Usage: %s [-h] [-g <controllers>:<path>] "
-			"[--sticky] command [arguments] ...\n",
-			program_name);
+		return;
 	}
+	printf("Usage: %s [-h] [-g <controllers>:<path>] [--sticky] "\
+		"command [arguments] ...\n", program_name);
+	printf("Run the task in given control group(s)\n");
+	printf("  -g <controllers>:<path>	Control group which "\
+		"should be added\n");
+	printf("  -h, --help			Display this help\n");
+	printf("  --sticky			cgred daemon does not "\
+		"change pidlist and children tasks\n");
 }
 
 
@@ -108,7 +113,7 @@ int main(int argc, char *argv[])
 	/* Just for debugging purposes. */
 	uid = geteuid();
 	gid = getegid();
-	cgroup_dbg("My euid and eguid is: %d,%d\n", (int) uid, (int) gid);
+	cgroup_dbg("My euid and egid is: %d,%d\n", (int) uid, (int) gid);
 
 	uid = getuid();
 	gid = getgid();

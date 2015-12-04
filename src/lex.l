@@ -16,6 +16,8 @@
 #include <libcgroup.h>
 #include <libcgroup-internal.h>
 #include "parse.h"
+#pragma GCC diagnostic ignored "-Wunused-function"
+
 int line_no = 1;
 jmp_buf parser_error_env;
 
@@ -31,7 +33,7 @@ jmp_buf parser_error_env;
 %%
 \n	{line_no++;}
 [ \t]	{/* DO NOTHING */}
-^#.*[ \t]*  {/* Comments */}
+^[ \t]*#.*[ \t]*  {/* Comments */}
 ^\*.*[ \t]* {/* Comments */}
 "mount"		{return MOUNT;}
 "task"		{return TASK;}
@@ -39,8 +41,9 @@ jmp_buf parser_error_env;
 "perm"		{return PERM;}
 "group"		{return GROUP;}
 "namespace"	{return NAMESPACE;}
+"template"	{return TEMPLATE;}
 "default"	{return DEFAULT;}
-[a-zA-Z0-9_\-\/\.\,]+ {yylval.name = strdup(yytext); return ID;}
+[a-zA-Z0-9_\-\/\.\,\%\@]+ {yylval.name = strdup(yytext); return ID;}
 \"[^"]*\" {yylval.name = strdup(yytext+1); yylval.name[strlen(yylval.name)-1] = '\0'; return ID; }
 .	{return yytext[0];}
 %%

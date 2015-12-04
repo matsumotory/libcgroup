@@ -295,7 +295,8 @@ int cgroup_delete_cgroup_ext(struct cgroup *cgroup, int flags);
 int cgroup_get_cgroup(struct cgroup *cgroup);
 
 /**
- * Copy all controllers, parameters and their values. All existing controllers
+ * Copy all controllers, their parameters and values. Group name, permissions
+ * and ownerships are not coppied. All existing controllers
  * in the source group are discarded.
  *
  * @param dst Destination group.
@@ -563,6 +564,12 @@ int cgroup_get_procs(char *name, char *controller, pid_t **pids, int *size);
  */
 int cg_chmod_recursive(struct cgroup *cgroup, mode_t dir_mode,
 	int dirm_change, mode_t file_mode, int filem_change);
+
+/**
+ *  Get the name of the cgroup from a given cgroup
+ *  @param cgroup The cgroup whose name is needed
+ */
+char *cgroup_get_cgroup_name(struct cgroup *cgroup);
 
 /**
  * @}

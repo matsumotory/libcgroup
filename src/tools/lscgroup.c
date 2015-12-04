@@ -44,15 +44,14 @@ static void usage(int status, const char *program_name)
 		fprintf(stderr, "Wrong input parameters,"
 			" try %s -h' for more information.\n",
 			program_name);
-	} else {
-		fprintf(stdout, "Usage: %s [-h] [[-g] <controllers>:<path>] "\
-			"[...]\n", program_name);
-		fprintf(stdout, "  -g <controllers>:<path>   Control group "\
-			"to be displayed (-g is optional)\n");
-		fprintf(stdout, "  -h, --help                Display "\
-			"this help\n");
-		fprintf(stdout, "List all cgroups\n");
+		return;
 	}
+	printf("Usage: %s [-h] [[-g] <controllers>:<path>] [...]\n",
+		program_name);
+	printf("List all cgroups\n");
+	printf("  -g <controllers>:<path>	Control group to be displayed "\
+		"(-g is optional)\n");
+	printf("  -h, --help			Display this help\n");
 }
 
 /*
@@ -97,11 +96,15 @@ static int display_controller_data(char *input_path, char *controller, char *nam
 	if (ret != 0)
 		return ret;
 
-	strncpy(input_dir_path, input_path, FILENAME_MAX);
-	/* remove problematic  '/' characters from input path*/
-	trim_filepath(input_dir_path);
+	strncpy(cgroup_dir_path, info.full_path, FILENAME_MAX);
+	/* remove problematic  '/' characters from cgroup directory path*/
+	trim_filepath(cgroup_dir_path);
 
-	len  = strlen(info.full_path) - strlen(input_dir_path);
+	strncpy(input_dir_path, input_path, FILENAME_MAX);
+
+	/* remove problematic  '/' characters from input directory path*/
+	trim_filepath(input_dir_path);
+	len  = strlen(cgroup_dir_path) - strlen(input_dir_path);
 	print_info(&info, name, len);
 	while ((ret = cgroup_walk_tree_next(0, &handle, &info, lvl)) == 0)
 		print_info(&info, name, len);

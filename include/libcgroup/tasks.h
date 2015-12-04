@@ -18,6 +18,8 @@ __BEGIN_DECLS
 enum cgflags {
 	/** Use cached rules, do not read rules from disk. */
 	CGFLAG_USECACHE = 0x01,
+	/** Use cached templates, do not read templates from disk. */
+	CGFLAG_USE_TEMPLATE_CACHE = 0x02,
 };
 
 /** Flags for cgroup_register_unchanged_process(). */
@@ -119,6 +121,17 @@ void cgroup_print_rules_config(FILE *fp);
  */
 
 /**
+ * Changes the cgroup of all running PIDs based on the rules in the config
+ * file. If a rules exists for a PID, then the PID is placed in the correct
+ * group.
+ *
+ * This function may be called after creating new control groups to move
+ * running PIDs into the newly created control groups.
+ *	@return 0 on success, < 0 on error
+ */
+int cgroup_change_all_cgroups(void);
+
+/**
  * Changes the cgroup of a program based on the rules in the config file.
  * If a rule exists for the given UID, GID or PROCESS NAME, then the given
  * PID is placed into the correct group.  By default, this function parses
@@ -126,6 +139,8 @@ void cgroup_print_rules_config(FILE *fp);
  *
  * The flags can alter the behavior of this function:
  * 	CGFLAG_USECACHE: Use cached rules instead of parsing the config file
+ *      CGFLAG_USE_TEMPLATE_CACHE: Use cached templates instead of
+ * parsing the config file
  *
  * This function may NOT be thread safe.
  * @param uid The UID to match.

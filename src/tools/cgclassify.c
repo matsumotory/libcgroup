@@ -37,12 +37,18 @@ static void usage(int status, const char *program_name)
 		fprintf(stderr, "Wrong input parameters,"
 			" try %s -h' for more information.\n",
 			program_name);
-	} else {
-		printf("usage is %s "
-			"[-g <list of controllers>:<relative path to cgroup>] "
-			"[--sticky | --cancel-sticky] <list of pids>  \n",
-			program_name);
+		return;
 	}
+	printf("Usage: %s [[-g] <controllers>:<path>] "\
+		"[--sticky | --cancel-sticky] <list of pids>\n", program_name);
+	printf("Move running task(s) to given cgroups\n");
+	printf("  -h, --help			Display this help\n");
+	printf("  -g <controllers>:<path>	Control group to be used "\
+		"as target\n");
+	printf("  --cancel-sticky		cgred daemon change pidlist "\
+		"and children tasks\n");
+	printf("  --sticky			cgred daemon does not change "\
+		"pidlist and children tasks\n");
 }
 
 /*
@@ -109,6 +115,7 @@ out:
 static struct option longopts[] = {
 	{"sticky", no_argument, NULL, 's'},
 	{"cancel-sticky", no_argument, NULL, 'u'},
+	{"help", no_argument, NULL, 'h'},
 	{0, 0, 0, 0}
 };
 
@@ -162,12 +169,13 @@ int main(int argc, char *argv[])
 	/* Initialize libcg */
 	ret = cgroup_init();
 	if (ret) {
-		fprintf(stderr, "libcgroup initialization failed:%d\n", ret);
+		fprintf(stderr, "%s: libcgroup initialization failed: %s\n",
+			argv[0], cgroup_strerror(ret));
 		return ret;
 	}
 
 	for (i = optind; i < argc; i++) {
-		pid = (uid_t) strtol(argv[i], &endptr, 10);
+		pid = (pid_t) strtol(argv[i], &endptr, 10);
 		if (endptr[0] != '\0') {
 			/* the input argument was not a number */
 			fprintf(stderr, "Error: %s is not valid pid.\n",

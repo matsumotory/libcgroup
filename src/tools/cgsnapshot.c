@@ -59,24 +59,21 @@ static void usage(int status, const char *program_name)
 		fprintf(stderr, "Wrong input parameters,"
 			" try %s -h' for more information.\n",
 			program_name);
-	} else {
-		fprintf(stdout, "Usage: %s [-h] [-s] [-b file] "\
-			"[-w file] [-f output_file] "\
-			"[controller] [...]\n", program_name);
-		fprintf(stdout, "Generate the configuration file from "\
-			"the given controllers of control groups\n");
-		fprintf(stdout, "  -b,--blacklist file  Set the blacklist"\
-			" configuration file (default %s)\n", BLACKLIST_CONF);
-		fprintf(stdout, "  -f,--file            Redirect the output"\
-			" to output_file\n");
-		fprintf(stdout, "  -h,--help            Display this help\n");
-		fprintf(stdout, "  -s,--silent          Ignore all "\
-			"warnings\n");
-		fprintf(stdout, "  -t,--strict          Don't show the "\
-			"variables which are not on the whitelist\n");
-		fprintf(stdout, "  -w,--whitelist file  Set the whitelist"\
-			" configuration file (don't used by default)\n");
+		return;
 	}
+	printf("Usage: %s [-h] [-s] [-b FILE] [-w FILE] [-f FILE] "\
+		"[controller] [...]\n", program_name);
+	printf("Generate the configuration file for given controllers\n");
+	printf("  -b, --blacklist=FILE		Set the blacklist"\
+		" configuration file (default %s)\n", BLACKLIST_CONF);
+	printf("  -f, --file=FILE		Redirect the output"\
+		" to output_file\n");
+	printf("  -h, --help			Display this help\n");
+	printf("  -s, --silent			Ignore all warnings\n");
+	printf("  -t, --strict			Don't show variables "\
+		"which are not on the whitelist\n");
+	printf("  -w, --whitelist=FILE		Set the whitelist"\
+		" configuration file (don't used by default)\n");
 }
 
 /* cache values from blacklist file to the list structure */
@@ -582,7 +579,9 @@ static int parse_controllers(cont_name_t cont_names[CG_CONTROLLER_MAX],
 		ret = cgroup_get_controller_next(&handle, &controller);
 	}
 
-	if (max != 0) {
+	if ((!(flags & FL_LIST) ||
+		(is_ctlr_on_list(controllers, cont_names)))
+		&& (max != 0)) {
 		(controllers[max])[0] = '\0';
 		ret = display_controller_data(
 			controllers, program_name);
@@ -610,9 +609,9 @@ static int show_mountpoints(const char *controller)
 
 	while (ret == 0) {
 		if (quote)
-			printf("\t\"%s\" = %s;\n", controller, path);
+			fprintf(of, "\t\"%s\" = %s;\n", controller, path);
 		else
-			printf("\t%s = %s;\n", controller, path);
+			fprintf(of, "\t%s = %s;\n", controller, path);
 		ret = cgroup_get_subsys_mount_point_next(&handle, path);
 	}
 	cgroup_get_subsys_mount_point_end(&handle);
@@ -622,8 +621,46 @@ static int show_mountpoints(const char *controller)
 	return 0;
 }
 
+/* parse whether data about given controller "name" should be displayed.
+ * If yes then the data are printed. "cont_names" is list of controllers
+ * which should be shown.
+ */
+static void parse_mountpoint(cont_name_t cont_names[CG_CONTROLLER_MAX],
+	char *name)
+{
+	int i;
+
+	/* if there is no controller list show all mounted controllers */
+	if (!(flags & FL_LIST)) {
+		if (show_mountpoints(name)) {
+			/* the controller is not mounted */
+			if ((flags & FL_SILENT) == 0)
+				fprintf(stderr, "ERROR: %s hierarchy "\
+					"not mounted\n", name);
+		}
+		return;
+	}
+
+	/* there is controller list - show wanted mounted controllers only */
+	for (i = 0; i <= CG_CONTROLLER_MAX-1; i++) {
+		if (!strncmp(cont_names[i], name, strlen(name)+1)) {
+			/* controller is on the list */
+			if (show_mountpoints(name)) {
+				/* the controller is not mounted */
+				if ((flags & FL_SILENT) == 0) {
+					fprintf(stderr, "ERROR: %s hierarchy "\
+						"not mounted\n", name);
+				}
+			break;
+			}
+		break;
+		}
+	}
+
+	return;
+}
+
 /* print data about input mount points */
-/* TODO only wanted ones */
 static int parse_mountpoints(cont_name_t cont_names[CG_CONTROLLER_MAX],
 	const char *program_name)
 {
@@ -640,16 +677,8 @@ static int parse_mountpoints(cont_name_t cont_names[CG_CONTROLLER_MAX],
 	while (ret == 0) {
 
 		/* the controller attached to some hierarchy */
-		if  (info.hierarchy != 0) {
-			ret = show_mountpoints(info.name);
-			if (ret != 0) {
-				/* the controller is not mounted */
-				if ((flags &  FL_SILENT) == 0) {
-					fprintf(stderr, "ERROR: %s hierarchy "\
-						"not mounted\n", info.name);
-				}
-			}
-		}
+		if  (info.hierarchy != 0)
+			parse_mountpoint(cont_names, info.name);
 
 		/* next controller */
 		ret = cgroup_get_all_controller_next(&handle, &info);
@@ -662,19 +691,16 @@ static int parse_mountpoints(cont_name_t cont_names[CG_CONTROLLER_MAX],
 		}
 		final_ret = ret;
 	}
-
 	cgroup_get_all_controller_end(&handle);
 
 	/* process also named hierarchies */
 	ret = cgroup_get_controller_begin(&handle, &mount);
 	while (ret == 0) {
-		if (strncmp(mount.name, "name=", 5) == 0) {
-			ret = show_mountpoints(mount.name);
-			if (ret != 0)
-				break;
-		}
+		if (strncmp(mount.name, "name=", 5) == 0)
+			parse_mountpoint(cont_names, mount.name);
 		ret = cgroup_get_controller_next(&handle, &mount);
 	}
+
 	if (ret != ECGEOF) {
 		if ((flags &  FL_SILENT) != 0) {
 			fprintf(stderr,
@@ -729,10 +755,12 @@ int main(int argc, char *argv[])
 		case 'b':
 			flags |= FL_BLACK;
 			strncpy(bl_file, optarg, FILENAME_MAX);
+			bl_file[FILENAME_MAX-1] = '\0';
 			break;
 		case 'w':
 			flags |= FL_WHITE;
 			strncpy(wl_file, optarg, FILENAME_MAX);
+			wl_file[FILENAME_MAX-1] = '\0';
 			break;
 		case 't':
 			flags |= FL_STRICT;

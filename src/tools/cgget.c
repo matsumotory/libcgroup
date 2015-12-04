@@ -33,31 +33,28 @@ enum group{
 
 static void usage(int status, const char *program_name)
 {
-	if (status != 0)
+	if (status != 0) {
 		fprintf(stderr, "Wrong input parameters,"
 			" try %s -h' for more information.\n",
 			program_name);
-	else {
-		fprintf(stdout, "Usage: %s [-nv] [-r <name>] "\
-			"[-g <controller>] [-a] <path> ...\n", program_name);
-		fprintf(stdout, "   or: %s [-nv] [-r <name>] "\
-			"-g <controller>:<path> ...\n", program_name);
-		fprintf(stdout, "Print parameter(s) of given group(s).\n");
-		fprintf(stdout, "  -a, --all			"\
-			"Print info about all relevant controllers\n");
-		fprintf(stdout, "  -g <controller>		"\
-			"Controller which info should be displaied\n");
-		fprintf(stdout, "  -g <controller>:<path>	"\
-			"Control group whih info should be displaied\n");
-		fprintf(stdout, "  -h, --help			"\
-			"Display this help\n");
-		fprintf(stdout, "  -n				"\
-			"Do not print headers\n");
-		fprintf(stdout, "  -r, --variable <name>	"\
-			"Define parameter to display\n");
-		fprintf(stdout, "  -v, --values-only		"\
-			"Print only values, not parameter names\n");
+		return;
 	}
+	printf("Usage: %s [-nv] [-r <name>] [-g <controllers>] "\
+		"[-a] <path> ...\n"\
+		"   or: %s [-nv] [-r <name>] -g <controllers>:<path> ...\n",
+		program_name, program_name);
+	printf("Print parameter(s) of given group(s).\n");
+	printf("  -a, --all			Print info about all relevant "\
+		"controllers\n");
+	printf("  -g <controllers>		Controller which info should "\
+		"be displayed\n");
+	printf("  -g <controllers>:<path>	Control group which info "\
+		"should be displayed\n");
+	printf("  -h, --help			Display this help\n");
+	printf("  -n				Do not print headers\n");
+	printf("  -r, --variable  <name>	Define parameter to display\n");
+	printf("  -v, --values-only		Print only values, not "\
+		"parameter names\n");
 }
 
 static int display_record(char *name,
@@ -361,22 +358,22 @@ int main(int argc, char *argv[])
 		case 'g':
 			if (strchr(optarg, ':') == NULL) {
 				/* -g <group> */
-				if (group_needed == 2) {
+				if (group_needed == GR_LIST) {
 					usage(1, argv[0]);
 					result = -1;
 					goto err;
 				}
-				group_needed = 1;
+				group_needed = GR_GROUP;
 				add_record_to_buffer(controllers, optarg,
 					capacity);
 			} else {
 				/* -g <group>:<path> */
-				if (group_needed == 1) {
+				if (group_needed == GR_GROUP) {
 					usage(1, argv[0]);
 					result = -1;
 					goto err;
 				}
-				group_needed = 2;
+				group_needed = GR_LIST;
 				ret = parse_cgroup_spec(cgroup_list, optarg,
 					capacity);
 				if (ret) {
@@ -389,12 +386,12 @@ int main(int argc, char *argv[])
 			}
 			break;
 		case 'a':
-			if (group_needed == 2) {
+			if (group_needed == GR_LIST) {
 				usage(1, argv[0]);
 				result = -1;
 				goto err;
 			}
-			group_needed = 1;
+			group_needed = GR_GROUP;
 			/* go through cgroups for all possible controllers */
 			mode |=  MODE_SHOW_ALL_CONTROLLERS;
 			break;
@@ -405,9 +402,9 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	if (((group_needed == 2) && (argv[optind])) ||
-	    ((group_needed != 2) && (!argv[optind]))) {
-		/* mixed -g <controller>:<path> and <path> or path not set */
+	if (((group_needed == GR_LIST) && (argv[optind])) ||
+	    ((group_needed != GR_LIST) && (!argv[optind]))) {
+		/* mixed -g <controllers>:<path> and <path> or path not set */
 		usage(1, argv[0]);
 		result = -1;
 		goto err;

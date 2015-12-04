@@ -83,6 +83,7 @@ struct cgroup_controller *cgroup_add_controller(struct cgroup *cgroup,
 		return NULL;
 
 	strncpy(controller->name, name, sizeof(controller->name));
+	controller->cgroup = cgroup;
 	controller->index = 0;
 
 	cgroup->controller[cgroup->index] = controller;
@@ -146,6 +147,7 @@ int cgroup_add_value_string(struct cgroup_controller *controller,
 
 	strncpy(cntl_value->name, name, sizeof(cntl_value->name));
 	strncpy(cntl_value->value, value, sizeof(cntl_value->value));
+	cntl_value->dirty = true;
 	controller->values[controller->index] = cntl_value;
 	controller->index++;
 
@@ -355,6 +357,7 @@ int cgroup_set_value_string(struct cgroup_controller *controller,
 		struct control_value *val = controller->values[i];
 		if (!strcmp(val->name, name)) {
 			strncpy(val->value, value, CG_VALUE_MAX);
+			val->dirty = true;
 			return 0;
 		}
 	}
@@ -404,6 +407,7 @@ int cgroup_set_value_int64(struct cgroup_controller *controller,
 			if (ret >= sizeof(val->value) || ret < 0)
 				return ECGINVAL;
 
+			val->dirty = true;
 			return 0;
 		}
 	}
@@ -452,6 +456,7 @@ int cgroup_set_value_uint64(struct cgroup_controller *controller,
 			if (ret >= sizeof(val->value) || ret < 0)
 				return ECGINVAL;
 
+			val->dirty = true;
 			return 0;
 		}
 	}
@@ -511,6 +516,7 @@ int cgroup_set_value_bool(struct cgroup_controller *controller,
 			if (ret >= sizeof(val->value) || ret < 0)
 				return ECGINVAL;
 
+			val->dirty = true;
 			return 0;
 
 		}
@@ -550,12 +556,17 @@ struct cgroup *create_cgroup_from_name_value_pairs(const char *name,
 		strncpy(con, name_value[i].name, FILENAME_MAX);
 		strtok(con, ".");
 
-		/* add relevant controller */
-		cgc = cgroup_add_controller(src_cgroup, con);
+		/* find out whether we have to add the controller or
+		   cgroup already contains it */
+		cgc = cgroup_get_controller(src_cgroup, con);
 		if (!cgc) {
-			fprintf(stderr, "controller %s can't be add\n",
-					con);
-			goto scgroup_err;
+			/* add relevant controller */
+			cgc = cgroup_add_controller(src_cgroup, con);
+			if (!cgc) {
+				fprintf(stderr, "controller %s can't be add\n",
+						con);
+				goto scgroup_err;
+			}
 		}
 
 		/* add name-value pair to this controller */
@@ -595,3 +606,10 @@ char *cgroup_get_value_name(struct cgroup_controller *controller, int index)
 		return NULL;
 }
 
+char *cgroup_get_cgroup_name(struct cgroup *cgroup)
+{
+	if (!cgroup)
+		return NULL;
+
+	return cgroup->name;
+}

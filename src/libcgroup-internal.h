@@ -47,6 +47,8 @@ __BEGIN_DECLS
 #define CGRULE_SUCCESS_STORE_PID	"SUCCESS_STORE_PID"
 
 
+#define CGCONFIG_CONF_FILE		"/etc/cgconfig.conf"
+
 #define CGRULES_CONF_FILE       "/etc/cgrules.conf"
 #define CGRULES_MAX_FIELDS_PER_LINE		3
 
@@ -59,11 +61,12 @@ __BEGIN_DECLS
 #define CGROUP_RULE_MAXLINE	(FILENAME_MAX + CGROUP_RULE_MAXKEY + \
 	CG_CONTROLLER_MAX + 3)
 
-#ifdef CGROUP_DEBUG
-#define cgroup_dbg(x...) printf(x)
-#else
-#define cgroup_dbg(x...) do {} while (0)
-#endif
+#define cgroup_err(x...) cgroup_log(CGROUP_LOG_ERROR, x)
+#define cgroup_warn(x...) cgroup_log(CGROUP_LOG_WARNING, x)
+#define cgroup_info(x...) cgroup_log(CGROUP_LOG_INFO, x)
+#define cgroup_dbg(x...) cgroup_log(CGROUP_LOG_DEBUG, x)
+
+#define CGROUP_DEFAULT_LOGLEVEL CGROUP_LOG_ERROR
 
 #define max(x,y) ((y)<(x)?(x):(y))
 #define min(x,y) ((y)>(x)?(x):(y))
@@ -71,11 +74,13 @@ __BEGIN_DECLS
 struct control_value {
 	char name[FILENAME_MAX];
 	char value[CG_VALUE_MAX];
+	bool dirty;
 };
 
 struct cgroup_controller {
 	char name[FILENAME_MAX];
 	struct control_value *values[CG_NV_MAX];
+	struct cgroup *cgroup;
 	int index;
 };
 
@@ -218,6 +223,11 @@ extern __thread char *cg_namespace_table[CG_CONTROLLER_MAX];
 int cgroup_config_insert_cgroup(char *cg_name);
 int cgroup_config_parse_controller_options(char *controller,
 		struct cgroup_dictionary *values);
+int template_config_insert_cgroup(char *cg_name);
+int template_config_parse_controller_options(char *controller,
+		struct cgroup_dictionary *values);
+int template_config_group_task_perm(char *perm_type, char *value);
+int template_config_group_admin_perm(char *perm_type, char *value);
 int cgroup_config_group_task_perm(char *perm_type, char *value);
 int cgroup_config_group_admin_perm(char *perm_type, char *value);
 int cgroup_config_insert_into_mount_table(char *name, char *mount_point);

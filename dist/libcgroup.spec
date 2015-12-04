@@ -1,10 +1,10 @@
-%define soversion 1.0.38
+%define soversion 1.0.41
 %define soversion_major 1
 
 Name: libcgroup
 Summary: Tools and libraries to control and monitor control groups
 Group: System Environment/Libraries
-Version: 0.38
+Version: 0.41
 Release:        1%{?dist}
 License: LGPLv2+
 URL: http://libcg.sourceforge.net/

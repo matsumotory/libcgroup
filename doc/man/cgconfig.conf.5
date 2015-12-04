@@ -145,7 +145,7 @@ Name of the user and the group, which own the
 file of the control group. Given fperm then specify the file permissions.
 Please note that the given value is not used as was specified. Instead,
 current file owner permissions are used as a "umask" for group and others
-permisions. For example if fperm = 777 then both group and others will get
+permissions. For example if fperm = 777 then both group and others will get
 the same permissions as the file owner.
 .TP 17
 .B "admin user/group"
@@ -238,6 +238,18 @@ groups and files of all groups, which do not have explicitly specified
 their permissions in their
 .I group
 section.
+
+.I template
+section has the same structure as
+.B group
+section. Template name uses the same templates string as
+.B cgrules.conf
+destination tag (see (\fBcgrules.conf\fR (5)).
+Template definition is used as a control group definition for rules in
+\fBcgrules.conf\fR (5) with the same destination name.
+Templates does not use
+.B default
+section settings.
 
 .\"********************************************"
 .SH EXAMPLES
@@ -709,6 +721,48 @@ group can move processes to the
 control group, but they can not move the process out of the group. Only the
 .I operator
 or root can do that.
+
+.SS Example 7
+.LP
+The configuration file:
+
+.LP
+.RS
+.nf
+mount {
+.RS
+cpu = /mnt/cgroups/cpu;
+cpuacct = /mnt/cgroups/cpuacct;
+.RE
+}
+
+group students {
+.RS
+cpuacct{
+}
+cpu {
+}
+.RE
+}
+
+template students/%u {
+.RS
+cpuacct{
+}
+cpu {
+}
+.RE
+}
+
+mkdir /mnt/cgroups/cpu/daemons
+mkdir /mnt/cgroups/cpuacct/daemons
+.fi
+.RE
+
+The situation is the similar as in Example 4. The only difference is template,
+which is used if some rule uses "/students/%u" as a destination.
+
+
 
 .SH RECOMMENDATIONS
 .SS Keep hierarchies separated

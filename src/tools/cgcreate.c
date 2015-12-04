@@ -37,26 +37,21 @@ static void usage(int status, const char *program_name)
 		fprintf(stderr, "Wrong input parameters,"
 			" try %s -h' for more information.\n",
 			program_name);
-	} else {
-		fprintf(stdout, "Usage: %s [-h] [-f mode] [-d mode] "\
-			"[-s mode] [-t <tuid>:<tgid>] [-a <agid>:<auid>] "\
-			"-g <controllers>:<path> [-g ...]\n",
-			program_name);
-		fprintf(stdout, "  -a <tuid>:<tgid>		Owner "\
-			"of the group and all its files\n");
-		fprintf(stdout, "  -d, --dperm=mode		Group "\
-			"directory permissions\n");
-		fprintf(stdout, "  -f, --fperm=mode		Group "\
-			"file permissions\n");
-		fprintf(stdout, "  -g <controllers>:<path>	Control "\
-			"group which should be added\n");
-		fprintf(stdout, "  -h, --help			Display "\
-			"this help\n");
-		fprintf(stdout, "  -s --tperm=mode		Tasks "\
-				"file permissions\n");
-		fprintf(stdout, "  -t <tuid>:<tgid>		Owner "\
-			"of the tasks file\n");
+		return;
 	}
+	printf("Usage: %s [-h] [-f mode] [-d mode] [-s mode] "\
+		"[-t <tuid>:<tgid>] [-a <agid>:<auid>] "\
+		"-g <controllers>:<path> [-g ...]\n", program_name);
+	printf("Create control group(s)\n");
+	printf("  -a <tuid>:<tgid>		Owner of the group and all "\
+		"its files\n");
+	printf("  -d, --dperm=mode		Group directory permissions\n");
+	printf("  -f, --fperm=mode		Group file permissions\n");
+	printf("  -g <controllers>:<path>	Control group which should be "\
+		"added\n");
+	printf("  -h, --help			Display this help\n");
+	printf("  -s, --tperm=mode		Tasks file permissions\n");
+	printf("  -t <tuid>:<tgid>		Owner of the tasks file\n");
 }
 
 
@@ -138,14 +133,20 @@ int main(int argc, char *argv[])
 		case 'd':
 			dirm_change = 1;
 			ret = parse_mode(optarg, &dir_mode, argv[0]);
+			if (ret)
+				goto err;
 			break;
 		case 'f':
 			filem_change = 1;
 			ret = parse_mode(optarg, &file_mode, argv[0]);
+			if (ret)
+				goto err;
 			break;
 		case 's':
 			filem_change = 1;
 			ret = parse_mode(optarg, &tasks_mode, argv[0]);
+			if (ret)
+				goto err;
 			break;
 		default:
 			usage(1, argv[0]);

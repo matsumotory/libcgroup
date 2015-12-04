@@ -256,14 +256,15 @@ int parse_mode(char *string, mode_t *pmode, const char *program_name)
 
 err:
 	*pmode = 0;
-	fprintf(stdout, "%s wrong mode format %s", program_name, string);
+	fprintf(stdout, "%s wrong mode format %s\n", program_name, string);
 	return -1;
 }
 
 int parse_uid_gid(char *string, uid_t *uid, gid_t *gid,
 		const char *program_name)
 {
-	char *grp_string, *pwd_string;
+	char *grp_string = NULL;
+	char *pwd_string = NULL;
 	struct passwd *pwd;
 	struct group *grp;
 
