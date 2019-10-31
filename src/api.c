@@ -27,28 +27,28 @@
 #define _GNU_SOURCE
 #endif
 
+#include <assert.h>
+#include <ctype.h>
 #include <dirent.h>
 #include <errno.h>
-#include <libcgroup.h>
+#include <fcntl.h>
+#include <fts.h>
+#include <grp.h>
 #include <libcgroup-internal.h>
+#include <libcgroup.h>
+#include <libgen.h>
+#include <linux/un.h>
 #include <mntent.h>
 #include <pthread.h>
+#include <pwd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/types.h>
-#include <sys/stat.h>
 #include <sys/socket.h>
-#include <fcntl.h>
+#include <sys/stat.h>
 #include <sys/syscall.h>
+#include <sys/types.h>
 #include <unistd.h>
-#include <fts.h>
-#include <ctype.h>
-#include <pwd.h>
-#include <libgen.h>
-#include <assert.h>
-#include <linux/un.h>
-#include <grp.h>
 
 /*
  * The errno which happend the last time (have to be thread specific)
@@ -861,211 +861,201 @@ int cgroup_init(void)
 	char *buf = NULL;
 	char mntent_buffer[4 * FILENAME_MAX];
 	char *strtok_buffer = NULL;
-
 	cgroup_set_default_logger(-1);
 
-	pthread_rwlock_wrlock(&cg_mount_table_lock);
+        if(!cgroup_initialized) {
+	    pthread_rwlock_wrlock(&cg_mount_table_lock);
+	    memset(&cg_mount_table, 0, sizeof(cg_mount_table));
 
-	/* free global variables filled by previous cgroup_init() */
-	for (i = 0; cg_mount_table[i].name[0] != '\0'; i++) {
-		struct cg_mount_point *mount = cg_mount_table[i].mount.next;
-		while (mount) {
-			struct cg_mount_point *tmp = mount;
-			mount = mount->next;
-			free(tmp);
-		}
-	}
-	memset(&cg_mount_table, 0, sizeof(cg_mount_table));
+            proc_cgroup = fopen("/proc/cgroups", "re");
 
-	proc_cgroup = fopen("/proc/cgroups", "re");
+            if (!proc_cgroup) {
+                    cgroup_err("Error: cannot open /proc/cgroups: %s\n",
+                                    strerror(errno));
+                    last_errno = errno;
+                    ret = ECGOTHER;
+                    goto unlock_exit;
+            }
 
-	if (!proc_cgroup) {
-		cgroup_err("Error: cannot open /proc/cgroups: %s\n",
-				strerror(errno));
-		last_errno = errno;
-		ret = ECGOTHER;
-		goto unlock_exit;
-	}
+            /*
+             * The first line of the file has stuff we are not interested in.
+             * So just read it and discard the information.
+             *
+             * XX: fix the size for fgets
+             */
+            buf = malloc(FILENAME_MAX);
+            if (!buf) {
+                    last_errno = errno;
+                    ret = ECGOTHER;
+                    goto unlock_exit;
+            }
+            if (!fgets(buf, FILENAME_MAX, proc_cgroup)) {
+                    free(buf);
+                    cgroup_err("Error: cannot read /proc/cgroups: %s\n",
+                                    strerror(errno));
+                    last_errno = errno;
+                    ret = ECGOTHER;
+                    goto unlock_exit;
+            }
+            free(buf);
 
-	/*
-	 * The first line of the file has stuff we are not interested in.
-	 * So just read it and discard the information.
-	 *
-	 * XX: fix the size for fgets
-	 */
-	buf = malloc(FILENAME_MAX);
-	if (!buf) {
-		last_errno = errno;
-		ret = ECGOTHER;
-		goto unlock_exit;
-	}
-	if (!fgets(buf, FILENAME_MAX, proc_cgroup)) {
-		free(buf);
-		cgroup_err("Error: cannot read /proc/cgroups: %s\n",
-				strerror(errno));
-		last_errno = errno;
-		ret = ECGOTHER;
-		goto unlock_exit;
-	}
-	free(buf);
+            i = 0;
+            while (!feof(proc_cgroup)) {
+                    err = fscanf(proc_cgroup, "%s %d %d %d", subsys_name,
+                                    &hierarchy, &num_cgroups, &enabled);
+                    if (err < 0)
+                            break;
+                    controllers[i] = strdup(subsys_name);
+                    i++;
+            }
+            controllers[i] = NULL;
 
-	i = 0;
-	while (!feof(proc_cgroup)) {
-		err = fscanf(proc_cgroup, "%s %d %d %d", subsys_name,
-				&hierarchy, &num_cgroups, &enabled);
-		if (err < 0)
-			break;
-		controllers[i] = strdup(subsys_name);
-		i++;
-	}
-	controllers[i] = NULL;
+            proc_mount = fopen("/proc/mounts", "re");
+            if (proc_mount == NULL) {
+                    cgroup_err("Error: cannot open /proc/mounts: %s\n",
+                                    strerror(errno));
+                    last_errno = errno;
+                    ret = ECGOTHER;
+                    goto unlock_exit;
+            }
 
-	proc_mount = fopen("/proc/mounts", "re");
-	if (proc_mount == NULL) {
-		cgroup_err("Error: cannot open /proc/mounts: %s\n",
-				strerror(errno));
-		last_errno = errno;
-		ret = ECGOTHER;
-		goto unlock_exit;
-	}
+            temp_ent = (struct mntent *) malloc(sizeof(struct mntent));
 
-	temp_ent = (struct mntent *) malloc(sizeof(struct mntent));
+            if (!temp_ent) {
+                    last_errno = errno;
+                    ret = ECGOTHER;
+                    goto unlock_exit;
+            }
 
-	if (!temp_ent) {
-		last_errno = errno;
-		ret = ECGOTHER;
-		goto unlock_exit;
-	}
+            while ((ent = getmntent_r(proc_mount, temp_ent,
+                                            mntent_buffer,
+                                            sizeof(mntent_buffer))) != NULL) {
+                    if (strcmp(ent->mnt_type, "cgroup"))
+                            continue;
 
-	while ((ent = getmntent_r(proc_mount, temp_ent,
-					mntent_buffer,
-					sizeof(mntent_buffer))) != NULL) {
-		if (strcmp(ent->mnt_type, "cgroup"))
-			continue;
+                    for (i = 0; controllers[i] != NULL; i++) {
+                            mntopt = hasmntopt(ent, controllers[i]);
 
-		for (i = 0; controllers[i] != NULL; i++) {
-			mntopt = hasmntopt(ent, controllers[i]);
+                            if (!mntopt)
+                                    continue;
 
-			if (!mntopt)
-				continue;
+                            cgroup_dbg("found %s in %s\n", controllers[i], ent->mnt_opts);
 
-			cgroup_dbg("found %s in %s\n", controllers[i], ent->mnt_opts);
+                            /* do not have duplicates in mount table */
+                            duplicate = 0;
+                            for  (j = 0; j < found_mnt; j++) {
+                                    if (strncmp(controllers[i],
+                                                            cg_mount_table[j].name,
+                                                            FILENAME_MAX) == 0) {
+                                            duplicate = 1;
+                                            break;
+                                    }
+                            }
+                            if (duplicate) {
+                                    cgroup_dbg("controller %s is already mounted on %s\n",
+                                            mntopt, cg_mount_table[j].mount.path);
+                                    ret = cg_add_duplicate_mount(&cg_mount_table[j],
+                                                    ent->mnt_dir);
+                                    if (ret)
+                                            goto unlock_exit;
+                                    /* continue with next controller */
+                                    continue;
+                            }
 
-			/* do not have duplicates in mount table */
-			duplicate = 0;
-			for  (j = 0; j < found_mnt; j++) {
-				if (strncmp(controllers[i],
-							cg_mount_table[j].name,
-							FILENAME_MAX) == 0) {
-					duplicate = 1;
-					break;
-				}
-			}
-			if (duplicate) {
-				cgroup_dbg("controller %s is already mounted on %s\n",
-					mntopt, cg_mount_table[j].mount.path);
-				ret = cg_add_duplicate_mount(&cg_mount_table[j],
-						ent->mnt_dir);
-				if (ret)
-					goto unlock_exit;
-				/* continue with next controller */
-				continue;
-			}
+                            strncpy(cg_mount_table[found_mnt].name,
+                                    controllers[i], FILENAME_MAX);
+                            cg_mount_table[found_mnt].name[FILENAME_MAX-1] = '\0';
+                            strncpy(cg_mount_table[found_mnt].mount.path,
+                                    ent->mnt_dir, FILENAME_MAX);
+                            cg_mount_table[found_mnt].mount.path[FILENAME_MAX-1] =
+                                    '\0';
+                            cg_mount_table[found_mnt].mount.next = NULL;
+                            cgroup_dbg("Found cgroup option %s, count %d\n",
+                                    ent->mnt_opts, found_mnt);
+                            found_mnt++;
+                    }
 
-			strncpy(cg_mount_table[found_mnt].name,
-				controllers[i], FILENAME_MAX);
-			cg_mount_table[found_mnt].name[FILENAME_MAX-1] = '\0';
-			strncpy(cg_mount_table[found_mnt].mount.path,
-				ent->mnt_dir, FILENAME_MAX);
-			cg_mount_table[found_mnt].mount.path[FILENAME_MAX-1] =
-				'\0';
-			cg_mount_table[found_mnt].mount.next = NULL;
-			cgroup_dbg("Found cgroup option %s, count %d\n",
-				ent->mnt_opts, found_mnt);
-			found_mnt++;
-		}
+                    /*
+                     * Doesn't match the controller.
+                     * Check if it is a named hierarchy.
+                     */
+                    mntopt = hasmntopt(ent, "name");
 
-		/*
-		 * Doesn't match the controller.
-		 * Check if it is a named hierarchy.
-		 */
-		mntopt = hasmntopt(ent, "name");
-
-		if (mntopt) {
-			mntopt = strtok_r(mntopt, ",", &strtok_buffer);
-			if (!mntopt)
-				continue;
-			/*
-			 * Check if it is a duplicate
-			 */
-			duplicate = 0;
+                    if (mntopt) {
+                            mntopt = strtok_r(mntopt, ",", &strtok_buffer);
+                            if (!mntopt)
+                                    continue;
+                            /*
+                             * Check if it is a duplicate
+                             */
+                            duplicate = 0;
 
 #ifdef OPAQUE_HIERARCHY
-			/*
-			 * Ignore the opaque hierarchy.
-			 */
-			if (strcmp(mntopt, OPAQUE_HIERARCHY) == 0)
-					continue;
+                            /*
+                             * Ignore the opaque hierarchy.
+                             */
+                            if (strcmp(mntopt, OPAQUE_HIERARCHY) == 0)
+                                            continue;
 #endif
 
-			for (j = 0; j < found_mnt; j++) {
-				if (strncmp(mntopt, cg_mount_table[j].name,
-							FILENAME_MAX) == 0) {
-					duplicate = 1;
-					break;
-				}
-			}
+                            for (j = 0; j < found_mnt; j++) {
+                                    if (strncmp(mntopt, cg_mount_table[j].name,
+                                                            FILENAME_MAX) == 0) {
+                                            duplicate = 1;
+                                            break;
+                                    }
+                            }
 
-			if (duplicate) {
-				cgroup_dbg("controller %s is already mounted on %s\n",
-					mntopt, cg_mount_table[j].mount.path);
-				ret = cg_add_duplicate_mount(&cg_mount_table[j],
-						ent->mnt_dir);
-				if (ret)
-					goto unlock_exit;
-				continue;
-			}
+                            if (duplicate) {
+                                    cgroup_dbg("controller %s is already mounted on %s\n",
+                                            mntopt, cg_mount_table[j].mount.path);
+                                    ret = cg_add_duplicate_mount(&cg_mount_table[j],
+                                                    ent->mnt_dir);
+                                    if (ret)
+                                            goto unlock_exit;
+                                    continue;
+                            }
 
-			strncpy(cg_mount_table[found_mnt].name,
-				mntopt, FILENAME_MAX);
-			cg_mount_table[found_mnt].name[FILENAME_MAX-1] = '\0';
-			strncpy(cg_mount_table[found_mnt].mount.path,
-				ent->mnt_dir, FILENAME_MAX);
-			cg_mount_table[found_mnt].mount.path[FILENAME_MAX-1] =
-				'\0';
-			cg_mount_table[found_mnt].mount.next = NULL;
-			cgroup_dbg("Found cgroup option %s, count %d\n",
-				ent->mnt_opts, found_mnt);
-			found_mnt++;
-		}
-	}
+                            strncpy(cg_mount_table[found_mnt].name,
+                                    mntopt, FILENAME_MAX);
+                            cg_mount_table[found_mnt].name[FILENAME_MAX-1] = '\0';
+                            strncpy(cg_mount_table[found_mnt].mount.path,
+                                    ent->mnt_dir, FILENAME_MAX);
+                            cg_mount_table[found_mnt].mount.path[FILENAME_MAX-1] =
+                                    '\0';
+                            cg_mount_table[found_mnt].mount.next = NULL;
+                            cgroup_dbg("Found cgroup option %s, count %d\n",
+                                    ent->mnt_opts, found_mnt);
+                            found_mnt++;
+                    }
+            }
+            free(temp_ent);
 
-	free(temp_ent);
+            if (!found_mnt) {
+                    cg_mount_table[0].name[0] = '\0';
+                    ret = ECGROUPNOTMOUNTED;
+                    goto unlock_exit;
+            }
 
-	if (!found_mnt) {
-		cg_mount_table[0].name[0] = '\0';
-		ret = ECGROUPNOTMOUNTED;
-		goto unlock_exit;
-	}
+            found_mnt++;
+            cg_mount_table[found_mnt].name[0] = '\0';
 
-	found_mnt++;
-	cg_mount_table[found_mnt].name[0] = '\0';
-
-	cgroup_initialized = 1;
+	    cgroup_initialized = 1;
 
 unlock_exit:
-	if (proc_cgroup)
-		fclose(proc_cgroup);
+            if (proc_cgroup)
+                    fclose(proc_cgroup);
 
-	if (proc_mount)
-		fclose(proc_mount);
+            if (proc_mount)
+                    fclose(proc_mount);
 
-	for (i = 0; controllers[i]; i++) {
-		free(controllers[i]);
-		controllers[i] = NULL;
-	}
+            for (i = 0; controllers[i]; i++) {
+                    free(controllers[i]);
+                    controllers[i] = NULL;
+            }
+	    pthread_rwlock_unlock(&cg_mount_table_lock);
+        }
 
-	pthread_rwlock_unlock(&cg_mount_table_lock);
 
 	return ret;
 }
