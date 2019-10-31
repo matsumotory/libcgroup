@@ -27,28 +27,28 @@
 #define _GNU_SOURCE
 #endif
 
+#include <assert.h>
+#include <ctype.h>
 #include <dirent.h>
 #include <errno.h>
-#include <libcgroup.h>
+#include <fcntl.h>
+#include <fts.h>
+#include <grp.h>
 #include <libcgroup-internal.h>
+#include <libcgroup.h>
+#include <libgen.h>
+#include <linux/un.h>
 #include <mntent.h>
 #include <pthread.h>
+#include <pwd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/types.h>
-#include <sys/stat.h>
 #include <sys/socket.h>
-#include <fcntl.h>
+#include <sys/stat.h>
 #include <sys/syscall.h>
+#include <sys/types.h>
 #include <unistd.h>
-#include <fts.h>
-#include <ctype.h>
-#include <pwd.h>
-#include <libgen.h>
-#include <assert.h>
-#include <linux/un.h>
-#include <grp.h>
 
 /*
  * The errno which happend the last time (have to be thread specific)
@@ -1072,43 +1072,12 @@ unlock_exit:
 
 static int cg_test_mounted_fs(void)
 {
-	FILE *proc_mount = NULL;
-	struct mntent *ent = NULL;
-	struct mntent *temp_ent = NULL;
-	char mntent_buff[4 * FILENAME_MAX];
-	int ret = 1;
+    struct stat st;
+    if (stat("/sys/fs/cgroup ", &st) != 0) {
+        return 0;
+    }
+    return 1;
 
-	proc_mount = fopen("/proc/mounts", "re");
-	if (proc_mount == NULL)
-		return 0;
-
-	temp_ent = (struct mntent *) malloc(sizeof(struct mntent));
-	if (!temp_ent) {
-		/* We just fail at the moment. */
-		fclose(proc_mount);
-		return 0;
-	}
-
-	ent = getmntent_r(proc_mount, temp_ent, mntent_buff,
-						sizeof(mntent_buff));
-
-	if (!ent) {
-		ret = 0;
-		goto done;
-	}
-
-	while (strcmp(ent->mnt_type, "cgroup") != 0) {
-		ent = getmntent_r(proc_mount, temp_ent, mntent_buff,
-						sizeof(mntent_buff));
-		if (ent == NULL) {
-			ret = 0;
-			goto done;
-		}
-	}
-done:
-	fclose(proc_mount);
-	free(temp_ent);
-	return ret;
 }
 
 static inline pid_t cg_gettid(void)
